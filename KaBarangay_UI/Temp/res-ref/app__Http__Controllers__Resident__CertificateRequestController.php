@@ -1,0 +1,299 @@
+<?php
+
+namespace App\Http\Controllers\Resident;
+
+use App\Http\Controllers\Controller;
+use App\Models\Certificate;
+use App\Models\CertificateRequest;
+use App\Models\Resident;
+use App\Support\AuditLogger;
+use App\Support\CertificateRequestDetails;
+use App\Support\CertificateTemplates;
+use App\Support\CertificateTenantAccess;
+use App\Support\DelayedPsaCertificate;
+use App\Support\ResidentContext;
+use Illuminate\Http\RedirectResponse;
+use Illuminate\Http\Request;
+use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Str;
+use Illuminate\Validation\Rule;
+use Illuminate\Validation\ValidationException;
+use Inertia\Inertia;
+use Inertia\Response;
+
+class CertificateRequestController extends Controller
+{
+    /**
+     * Display certificates and the logged-in resident's requests.
+     */
+    public function index(): Response
+    {
+        $resident = ResidentContext::get();
+
+        return Inertia::render(
+            'Resident/Certificates',
+            [
+                'resident' => $this->deferProp(function () use ($resident): array {
+                    $resident->loadMissing(['barangay', 'sectors', 'purok']);
+
+                    return [
+                        'id' => $resident->id,
+                        'first_name' => $resident->first_name,
+                        'middle_name' => $resident->middle_name,
+                        'last_name' => $resident->last_name,
+                        'suffix' => $resident->suffix,
+                        'full_name' => $resident->full_name,
+                        'resident_number' => $resident->resident_number,
+                        'birthdate' => $resident->birthdate?->format('Y-m-d'),
+                        'sex' => $resident->sex,
+                        'purok' => $resident->purok?->name,
+
+                        'barangay' => [
+                            'id' => $resident->barangay?->id,
+                            'name' => $resident->barangay?->name,
+                            'code' => $resident->barangay?->code,
+                            'city_municipality' => $resident->barangay?->city_municipality,
+                            'province' => $resident->barangay?->province,
+                        ],
+
+                        'sectors' => $resident->sectors
+                            ->map(function ($sector) {
+                                return [
+                                    'id' => $sector->id,
+                                    'name' => $sector->name,
+                                    'slug' => $sector->slug,
+                                ];
+                            })
+                            ->values(),
+                    ];
+                }),
+
+                // Only show active certificates belonging to this barangay.
+                'certificates' => $this->deferProp(fn () => Certificate::query()
+                    ->where('barangay_id', $resident->barangay_id)
+                    ->where('is_active', true)
+                    ->orderBy('name')
+                    ->get()
+                    ->map(function (Certificate $certificate) use ($resident) {
+                        $type = CertificateRequestDetails::typeForCertificate($certificate);
+
+                        return [
+                            'id' => (string) $certificate->id,
+                            'name' => $certificate->name,
+                            'fee' => (float) $certificate->fee,
+                            'description' => $certificate->description ?? '',
+                            'requirements' => $certificate->requirements ?? [],
+                            'requiresBusinessDetails' => CertificateRequestDetails::requiresBusinessDetails(
+                                $type,
+                                (bool) $certificate->requires_business_details,
+                            ),
+                            'certificateType' => $type,
+                            'fixedPurpose' => CertificateRequestDetails::fixedPurpose($type),
+                            'detailsFields' => CertificateRequestDetails::fieldsForCertificate($certificate),
+                            // Active barangay catalog entries are requestable even
+                            // when the Clerk has no generation template for them.
+                            'available' => true,
+                            'templateAvailable' => $type !== null
+                                && CertificateTenantAccess::allows($resident->barangay_id, $type)
+                                && CertificateTemplates::isPdfAvailable($type),
+                        ];
+                    })
+                    ->values()
+                    ->all()),
+                // Only show requests belonging to this resident.
+                'requests' => $this->deferProp(fn () => CertificateRequest::query()
+                    ->with('certificate')
+                    ->where('resident_id', $resident->id)
+                    ->where('barangay_id', $resident->barangay_id)
+                    ->latest('created_at')
+                    ->paginate(10, ['*'], 'requests_page')
+                    ->withQueryString()
+                    ->through(function (CertificateRequest $request) {
+                        $payload = CertificateRequestDetails::decode(
+                            $request->additional_details,
+                        );
+                        $type = $payload['type']
+                            ?? CertificateRequestDetails::typeForCertificate(
+                                $request->certificate,
+                            );
+
+                        return [
+                            'id' => $request->id,
+                            'reference' => $request->reference,
+                            'certificate' => $request->certificate?->name
+                                ?? 'Certificate',
+                            'purpose' => $request->purpose,
+                            'fee' => (float) $request->fee,
+                            'status' => $request->status,
+                            'date' => (
+                                $request->submitted_at
+                                ?? $request->created_at
+                            )?->format('F j, Y') ?? '',
+                            'businessName' => $request->business_name,
+                            'businessAddress' => $request->business_address,
+                            'additionalDetails' => $payload['notes'],
+                            'details' => CertificateRequestDetails::displayRows(
+                                $type,
+                                $payload['fields'],
+                            ),
+                            'adminNote' => $request->admin_note,
+                        ];
+                    })),
+            ]
+        );
+    }
+
+    /**
+     * Save a new certificate request.
+     */
+    public function store(Request $request): RedirectResponse
+    {
+        $this->createValidatedRequest($request);
+
+        return redirect()->route('resident.certificates')->with('success', 'Certificate request submitted successfully.');
+    }
+
+    public function createValidatedRequest(Request $request, array $submissionIdentity = []): CertificateRequest
+    {
+        $resident = ResidentContext::get();
+        $certificateInput = $request->validate([
+            'certificate_id' => [
+                'required',
+                'integer',
+                Rule::exists('certificates', 'id')
+                    ->where(function ($query) use ($resident) {
+                        $query
+                            ->where(
+                                'barangay_id',
+                                $resident->barangay_id
+                            )
+                            ->where('is_active', true);
+                    }),
+            ],
+        ]);
+
+        // Confirm the selected certificate belongs to the resident's barangay.
+        $certificate = Certificate::query()
+            ->where('barangay_id', $resident->barangay_id)
+            ->where('is_active', true)
+            ->findOrFail($certificateInput['certificate_id']);
+
+        $certificateType = CertificateRequestDetails::typeForCertificate(
+            $certificate,
+        );
+
+        $fixedPurpose = CertificateRequestDetails::fixedPurpose($certificateType);
+        $requiresBusinessDetails =
+            CertificateRequestDetails::requiresBusinessDetails(
+                $certificateType,
+                (bool) $certificate->requires_business_details,
+            );
+        $detailsFields = CertificateRequestDetails::fieldsForCertificate($certificate);
+
+        $validated = $request->validate(
+            CertificateRequestDetails::validationRules(
+                $certificateType,
+                $requiresBusinessDetails,
+                $detailsFields,
+            ),
+        );
+
+        $details = CertificateRequestDetails::normalizeDetails(
+            $certificateType,
+            $validated['details'] ?? [],
+            $detailsFields,
+        );
+
+        if ($certificateType === DelayedPsaCertificate::TYPE
+            && isset($details['residency_start_year'])) {
+            $birthdate = $resident->birthdate;
+            $earliestYear = DelayedPsaCertificate::earliestResidencyYear(
+                $birthdate === null ? null : Carbon::instance($birthdate),
+            );
+
+            if ((int) $details['residency_start_year'] < $earliestYear) {
+                throw ValidationException::withMessages([
+                    'details.residency_start_year' => 'The residency start year cannot be earlier than the resident\'s birth year.',
+                ]);
+            }
+        }
+
+        $purpose = $fixedPurpose
+            ?? ($validated['purpose'] ?? null);
+        $additionalDetails = CertificateRequestDetails::encode(
+            $certificateType,
+            $details,
+            $validated['additional_details'] ?? null,
+            $detailsFields,
+        );
+
+        // Generate a unique reference number.
+        do {
+            $reference = 'CERT-'
+                .now()->format('Y')
+                .'-'
+                .Str::upper(Str::random(8));
+        } while (
+            CertificateRequest::query()
+                ->where('reference', $reference)
+                ->exists()
+        );
+
+        $certificateRequest = DB::transaction(function () use (
+            $resident,
+            $certificate,
+            $validated,
+            $purpose,
+            $additionalDetails,
+            $reference,
+            $submissionIdentity
+        ) {
+            return CertificateRequest::create([
+                'barangay_id' => $resident->barangay_id,
+                'resident_id' => $resident->id,
+                'certificate_id' => $certificate->id,
+                'reference' => $reference,
+                'purpose' => $purpose,
+
+                // Use the fee saved in the database.
+                'fee' => $certificate->fee,
+
+                'status' => 'Pending',
+                'business_name' => $validated['business_name'] ?? null,
+                'business_address' => $validated['business_address'] ?? null,
+                'additional_details' => $additionalDetails,
+                'submitted_at' => now(),
+                ...$submissionIdentity,
+            ]);
+        });
+
+        /*
+        |--------------------------------------------------------------------------
+        | Audit: certificate request created
+        |--------------------------------------------------------------------------
+        |
+        | Resident submissions have no staff/User identity, so actor_id stays
+        | null. The barangay comes from the persisted resident record and the
+        | certificate was validated against that same barangay, so a request
+        | can never be logged against a foreign barangay. Only the system
+        | reference and workflow status are recorded.
+        |
+        */
+
+        AuditLogger::record(
+            'certificate_request.created',
+            $resident->barangay_id,
+            null,
+            'certificate_request',
+            $certificateRequest->id,
+            [
+                'entity_reference' => $reference,
+                'new_status' => $certificateRequest->status,
+            ],
+            $request->ip(),
+        );
+
+        return $certificateRequest;
+    }
+}

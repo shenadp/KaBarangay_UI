@@ -9,3 +9,11 @@ yarn-error.log*
 pnpm-debug.log*
 .openchamber
 .smoke
+
+# Local env — never commit credentials or machine-specific URLs.
+.env
+.env.*
+!.env.example
+
+# Scratch: backend reference corpus and one-off backups.
+Temp/

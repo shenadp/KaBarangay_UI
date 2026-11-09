@@ -216,7 +216,7 @@ export default function BarangayChatbot({
       className={cn(
         "flex flex-col overflow-hidden border rounded-xl",
         floating
-          ? "pointer-events-auto absolute inset-x-3 z-50 border-line bg-surface shadow-raised"
+          ? "pointer-events-auto absolute inset-x-3 z-50 border-line bg-surface shadow-raised md:inset-x-auto md:right-4 md:w-[380px]"
           : "min-h-96 border-line-soft bg-surface shadow-card",
         !floating && "h-[min(76dvh,740px)]",
       )}
@@ -433,7 +433,7 @@ export default function BarangayChatbot({
 
   /* The assistant belongs to the phone frame, not the whole browser window. */
   return (
-    <div className="pointer-events-none fixed inset-0 z-40 mx-auto w-full max-w-lg">
+    <div className="pointer-events-none fixed inset-0 z-40 mx-auto w-full max-w-lg md:max-w-none">
       <AssistantLauncher
         open={open}
         onToggle={() => setOpen((value) => !value)}

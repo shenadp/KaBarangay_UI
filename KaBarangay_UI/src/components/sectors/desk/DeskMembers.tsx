@@ -55,17 +55,26 @@ export default function DeskMembers({ desk }: { desk: SectorDesk }) {
 
   const selected = residents.find((resident) => resident.id === selectedId) ?? null
 
+  /**
+   * The directory is the sector roster, not the whole barangay register — the
+   * backend `SeniorController::residents` filters on the sector classification
+   * before handing the list to `ResidentDirectoryTable`.
+   */
+  const members = useMemo(
+    () => residents.filter((resident) => resident.sectors.includes(desk.memberTag)),
+    [residents, desk.memberTag],
+  )
+
   const stats = useMemo(() => {
-    const members = residents.filter((resident) => resident.sectors.includes(desk.memberTag))
     return {
       total: members.length,
       active: members.filter((resident) => resident.status === "Active").length,
       pending: members.filter((resident) => resident.status === "Pending").length,
       qrIssued: members.filter((resident) => resident.hasQr).length,
     }
-  }, [residents, desk.memberTag])
+  }, [members])
 
-  const filtered = residents.filter((resident) => {
+  const filtered = members.filter((resident) => {
     const matchesPurok = purokFilter === "all" || resident.purok === purokFilter
     const needle = query.trim().toLowerCase()
     const matchesQuery =
@@ -120,7 +129,7 @@ export default function DeskMembers({ desk }: { desk: SectorDesk }) {
             <PanelDescription>{desk.directoryDescription}</PanelDescription>
           </div>
           <span className="rounded-full bg-brand-soft px-2.5 py-0.5 text-[11px] font-medium text-brand tnum">
-            {filtered.length} of {residents.length} residents
+            {filtered.length} of {members.length} members
           </span>
         </PanelHeader>
 

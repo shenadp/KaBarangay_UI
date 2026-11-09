@@ -1,9 +1,12 @@
+import type { LucideIcon } from "lucide-react"
+
 import { cn } from "@/lib/utils"
 
 export type Segment = {
   label: string
   value: string
   count?: number
+  icon?: LucideIcon
 }
 
 type Props = {
@@ -39,6 +42,7 @@ export default function SegmentedTabs({ segments, value, onChange, className }: 
                 : "text-ink-muted hover:text-ink-strong",
             )}
           >
+            {segment.icon && <segment.icon className="size-3.5" />}
             {segment.label}
             {segment.count !== undefined && (
               <span

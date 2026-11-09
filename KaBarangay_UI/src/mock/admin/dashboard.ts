@@ -7,6 +7,8 @@
  * pages already use, so the dashboard can never disagree with them.
  */
 
+import { FileClock, UserRoundPlus, type LucideIcon } from "lucide-react"
+
 import { clerkStore } from "@/mock/clerkDesk"
 import { pwdStore } from "@/mock/pwd"
 import { seniorStore } from "@/mock/senior"
@@ -38,7 +40,7 @@ export type DashboardAnnouncement = {
 
 export type DashboardNotification = {
   id: string
-  icon: string
+  icon: LucideIcon
   title: string
   description: string
   time: string
@@ -198,7 +200,7 @@ function notificationRows(): DashboardNotification[] {
     .forEach((registration) => {
       notifications.push({
         id: `reg-${registration.id}`,
-        icon: "♙",
+        icon: UserRoundPlus,
         title: "Resident registration to review",
         description: applicantName(registration) || "New application",
         time: timeAgo(registration.submittedAt),
@@ -215,7 +217,7 @@ function notificationRows(): DashboardNotification[] {
   requests.forEach((request) => {
     notifications.push({
       id: `cert-${request.id}`,
-      icon: "!",
+      icon: FileClock,
       title: "Certificate request awaiting processing",
       description: request.certificate || "Certificate request",
       time: timeAgo(request.submittedAt),

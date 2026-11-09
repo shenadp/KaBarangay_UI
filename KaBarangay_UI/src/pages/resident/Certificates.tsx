@@ -233,7 +233,7 @@ export default function ResidentCertificates() {
   }
 
   return (
-    <div className="space-y-5">
+    <div className="mx-auto w-full max-w-4xl space-y-5">
       <section>
         <h1 className="text-xl font-semibold tracking-tight text-ink-strong">
           Certificate Request

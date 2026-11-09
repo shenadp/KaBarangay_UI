@@ -36,70 +36,80 @@ export default function ResidentHome() {
         <p className="mt-1 text-sm text-ink-muted">How can we help you today?</p>
       </section>
 
-      <section aria-labelledby="quick-services-heading" className="space-y-3">
-        <h2 id="quick-services-heading" className="sr-only">
-          Quick Services
-        </h2>
-        {quickServices.map((service) => (
-          <Link
-            key={service.to}
-            to={service.to}
-            className="flex items-center gap-3 rounded-xl border border-line-soft bg-surface p-4 shadow-card transition-colors hover:border-brand"
-          >
-            <span className="grid size-10 shrink-0 place-items-center rounded-full bg-brand-soft text-brand">
-              <service.icon className="size-5" />
-            </span>
-            <span className="min-w-0">
-              <span className="block text-sm font-semibold text-ink-strong">{service.title}</span>
-              <span className="mt-1 block text-xs leading-relaxed text-ink-muted">
-                {service.description}
-              </span>
-            </span>
-            <ArrowRight className="ml-auto size-4 shrink-0 text-ink-faint" />
-          </Link>
-        ))}
-      </section>
+      <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_22rem] lg:items-start">
+        <div className="space-y-5">
+          <section aria-labelledby="quick-services-heading" className="space-y-3">
+            <h2 id="quick-services-heading" className="sr-only">
+              Quick Services
+            </h2>
+            <div className="grid gap-3 xl:grid-cols-2">
+              {quickServices.map((service) => (
+                <Link
+                  key={service.to}
+                  to={service.to}
+                  className="flex items-center gap-3 rounded-xl border border-line-soft bg-surface p-4 shadow-card transition-colors hover:border-brand"
+                >
+                  <span className="grid size-10 shrink-0 place-items-center rounded-full bg-brand-soft text-brand">
+                    <service.icon className="size-5" />
+                  </span>
+                  <span className="min-w-0">
+                    <span className="block text-sm font-semibold text-ink-strong">
+                      {service.title}
+                    </span>
+                    <span className="mt-1 block text-xs leading-relaxed text-ink-muted">
+                      {service.description}
+                    </span>
+                  </span>
+                  <ArrowRight className="ml-auto size-4 shrink-0 text-ink-faint" />
+                </Link>
+              ))}
+            </div>
+          </section>
 
-      <section aria-labelledby="latest-announcement-heading">
-        <div className="mb-2 flex items-center justify-between gap-4">
-          <h2 id="latest-announcement-heading" className="text-sm font-semibold text-ink-strong">
-            Latest Announcement
-          </h2>
-          <Link
-            to="/resident/announcements"
-            className="shrink-0 text-xs font-semibold text-brand hover:underline"
-          >
-            View All
-          </Link>
+          <section aria-labelledby="latest-announcement-heading">
+            <div className="mb-2 flex items-center justify-between gap-4">
+              <h2 id="latest-announcement-heading" className="text-sm font-semibold text-ink-strong">
+                Latest Announcement
+              </h2>
+              <Link
+                to="/resident/announcements"
+                className="shrink-0 text-xs font-semibold text-brand hover:underline"
+              >
+                View All
+              </Link>
+            </div>
+
+            {announcement ? (
+              <Link
+                to="/resident/announcements"
+                className="flex min-h-[68px] items-center gap-3 rounded-xl border border-line-soft bg-surface p-4 shadow-card transition-colors hover:border-brand"
+              >
+                <span className="grid size-9 shrink-0 place-items-center rounded-full bg-brand-soft text-brand">
+                  <Megaphone className="size-4" />
+                </span>
+                <span className="min-w-0">
+                  <span className="block truncate text-sm font-semibold text-ink-strong">
+                    {announcement.title}
+                  </span>
+                  <span className="mt-0.5 block text-xs text-ink-muted">
+                    {announcement.createdAt}
+                  </span>
+                </span>
+              </Link>
+            ) : (
+              <Panel className="p-0">
+                <EmptyState
+                  icon={Megaphone}
+                  title="No active announcements at this time."
+                  className="py-8"
+                />
+              </Panel>
+            )}
+          </section>
         </div>
 
-        {announcement ? (
-          <Link
-            to="/resident/announcements"
-            className="flex min-h-[68px] items-center gap-3 rounded-xl border border-line-soft bg-surface p-4 shadow-card transition-colors hover:border-brand"
-          >
-            <span className="grid size-9 shrink-0 place-items-center rounded-full bg-brand-soft text-brand">
-              <Megaphone className="size-4" />
-            </span>
-            <span className="min-w-0">
-              <span className="block truncate text-sm font-semibold text-ink-strong">
-                {announcement.title}
-              </span>
-              <span className="mt-0.5 block text-xs text-ink-muted">{announcement.createdAt}</span>
-            </span>
-          </Link>
-        ) : (
-          <Panel className="p-0">
-            <EmptyState
-              icon={Megaphone}
-              title="No active announcements at this time."
-              className="py-8"
-            />
-          </Panel>
-        )}
-      </section>
-
-      <AssistancePanel />
+        <AssistancePanel />
+      </div>
     </div>
   )
 }

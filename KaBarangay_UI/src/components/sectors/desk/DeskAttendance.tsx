@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react"
 import { Link, useParams } from "react-router-dom"
-import { ScanLine, UserPlus } from "lucide-react"
+import { ClipboardCheck, Gift, MapPin, ScanLine, UserPlus } from "lucide-react"
 
 import PageHeader from "@/components/PageHeader"
 import StatusBadge from "@/components/StatusBadge"
@@ -173,7 +173,12 @@ function AttendanceSheet({ desk, id }: { desk: DeskBoardSet; id?: string }) {
             </div>
             <PanelTitle className="mt-2">{activity.title}</PanelTitle>
             <PanelDescription>
-              {activity.location ? `📍 ${activity.location} · ` : ""}
+              {activity.location && (
+                <>
+                  <MapPin className="mr-1 inline size-3 align-[-2px]" aria-hidden />
+                  {activity.location} ·{" "}
+                </>
+              )}
               {activity.eventDate
                 ? formatIsoDate(activity.eventDate)
                 : formatIsoDate(activity.createdAt)}
@@ -300,8 +305,18 @@ function AttendanceSheet({ desk, id }: { desk: DeskBoardSet; id?: string }) {
             value={tab}
             onChange={(value) => setTab(value as SectorAttendanceStatus)}
             segments={[
-              { label: "📋 Event Present / Dumalo", value: "present", count: presentCount },
-              { label: "🎁 Aid Claimed / Naka-receive", value: "claimed", count: claimedCount },
+              {
+                label: "Event Present / Dumalo",
+                value: "present",
+                count: presentCount,
+                icon: ClipboardCheck,
+              },
+              {
+                label: "Aid Claimed / Naka-receive",
+                value: "claimed",
+                count: claimedCount,
+                icon: Gift,
+              },
             ]}
           />
         </PanelHeader>

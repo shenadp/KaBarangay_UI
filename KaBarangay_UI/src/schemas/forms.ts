@@ -77,12 +77,17 @@ export const residentRegistrationBaseSchema = z.object({
           message: "Enter a valid Philippine mobile number, for example 09171234567.",
         })
     }),
-  // Optional in the backend: only a filled-in address has to look like one.
+  // Required, and the applicant must verify it with a one-time code before the
+  // account step will let them continue (backend `RegistrationOtpController`).
   email: z
     .string()
     .trim()
     .superRefine((value, ctx) => {
-      if (value && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value))
+      if (!value) {
+        ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Email address is required." })
+        return
+      }
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value))
         ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Enter a valid email address." })
     }),
   password: z

@@ -381,29 +381,33 @@ function EmergencyDialog({
                     Common emergency contacts are placed first.
                   </p>
                   <div className="mt-3 space-y-2">
-                    {quickCalls.map((call) => (
-                      <a
-                        key={call.key}
-                        href={call.contact.telUri}
-                        className="flex items-center gap-3 rounded-xl border border-destructive/20 bg-destructive/5 p-3 transition-colors hover:border-destructive/30"
-                      >
-                        <span className="grid size-10 shrink-0 place-items-center rounded-lg bg-surface text-lg shadow-card">
-                          {call.icon}
-                        </span>
-                        <span className="min-w-0 flex-1">
-                          <span className="block text-sm font-semibold text-ink-strong">
-                            {call.title}
+                    {quickCalls.map((call) => {
+                      const CallIcon = call.icon
+
+                      return (
+                        <a
+                          key={call.key}
+                          href={call.contact.telUri}
+                          className="flex items-center gap-3 rounded-xl border border-destructive/20 bg-destructive/5 p-3 transition-colors hover:border-destructive/30"
+                        >
+                          <span className="grid size-10 shrink-0 place-items-center rounded-lg bg-surface text-destructive shadow-card">
+                            <CallIcon className="size-5" />
                           </span>
-                          <span className="mt-0.5 block truncate text-xs text-ink-muted">
-                            {call.contact.label || call.contact.name}
+                          <span className="min-w-0 flex-1">
+                            <span className="block text-sm font-semibold text-ink-strong">
+                              {call.title}
+                            </span>
+                            <span className="mt-0.5 block truncate text-xs text-ink-muted">
+                              {call.contact.label || call.contact.name}
+                            </span>
+                            <span className="mt-1 block text-sm font-semibold tnum text-destructive">
+                              {formatPhoneNumber(call.contact.phoneNumber)}
+                            </span>
                           </span>
-                          <span className="mt-1 block text-sm font-semibold tnum text-destructive">
-                            {formatPhoneNumber(call.contact.phoneNumber)}
-                          </span>
-                        </span>
-                        <Phone className="size-4 shrink-0 text-destructive" />
-                      </a>
-                    ))}
+                          <Phone className="size-4 shrink-0 text-destructive" />
+                        </a>
+                      )
+                    })}
                   </div>
                 </section>
               )}
@@ -412,6 +416,7 @@ function EmergencyDialog({
                 <h3 className="text-sm font-semibold text-ink-strong">All Emergency Contacts</h3>
                 <div className="mt-3 space-y-2">
                   {categories.map((category) => {
+                    const CategoryIcon = emergencyCategoryIcon(category)
                     const group = contacts.filter(
                       (contact) => (contact.subCategory || "General") === category,
                     )
@@ -426,7 +431,9 @@ function EmergencyDialog({
                           className="flex min-h-11 w-full items-center justify-between gap-3 bg-surface px-4 text-left transition-colors hover:bg-canvas"
                         >
                           <span className="flex items-center gap-3">
-                            <span className="text-lg">{emergencyCategoryIcon(category)}</span>
+                            <span className="grid size-8 shrink-0 place-items-center rounded-md bg-destructive/10 text-destructive">
+                              <CategoryIcon className="size-4" />
+                            </span>
                             <span>
                               <span className="block text-sm font-semibold text-ink-strong">
                                 {category}

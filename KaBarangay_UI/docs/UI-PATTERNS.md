@@ -113,10 +113,18 @@ raw `<button className="inline-grid size-8 …">`. A block-level `grid` button i
 `text-align` and parks itself at the left of the cell, so the ⋯ ends up ~43px away from the
 header — `inline-grid` aligns it to the same right edge with no change to row height (48.8px).
 
-**Boards**: every sector desk has a single **Announcements** queue — notices *and* updates are
-the same thing and are listed together (`AnnouncementsView` defaults to
-`["announcement", "update"]`). Only `Programs` is a board of its own, so there is no `Updates`
-nav item and no `/…/updates` route on the clerk, senior or PWD desks.
+**Boards**: every sector desk exposes the same three boards the backend renders from
+`Announcements/Index`:
+
+- **Announcements** (`/…/announcements`) — the notice board, also the merged entry point for
+  notices *and* informational updates (`["auto", "update"]` on `DeskPostsBoard`).
+- **Updates** (`/…/updates`) — informational notices only, published without approval.
+- **Programs** (`/…/programs`) — events with a lifecycle (draft / ongoing / done) and, when the
+  event needs it, a QR attendance sheet.
+
+The sidebar links **Updates** and **Programs** (matching the backend `SeniorLayout` / `PwdLayout`);
+`Announcements` stays reachable by route for the combined view. `DeskPostsBoard` also carries the
+lifecycle tabs, type/category/importance filters, create/edit dialog, mark-done and delete actions.
 
 **Form page**: React Hook Form + Zod.
 
@@ -198,26 +206,34 @@ around the notice. Resident routes are never gated — the portal must work at
 
 Submit handlers stay UI-only.
 
-**Mobile page (resident)** — inside `ResidentLayout`, column is `max-w-lg` (512px):
+**Resident page width** — one content set, two shells:
 
-- stack sections with `space-y-4`, each a `Panel className="p-4"` or a bare
-  `rounded-xl border border-line-soft bg-surface p-4 shadow-card`
-- tap targets ≥ `h-10` (40px); no horizontal scroll at 320px
-- no sidebars, no hover-only affordances
-- keep copy short and left-aligned; it must read at 375px
+- **below `md`** — `ResidentLayout` keeps the 512px phone frame (`max-w-lg`):
+  stack sections with `space-y-4`, each a `Panel className="p-4"` or a bare
+  `rounded-xl border border-line-soft bg-surface p-4 shadow-card`; tap targets ≥
+  `h-10` (40px); no horizontal scroll at 320px; keep copy short and left-aligned
+  so it reads at 375px.
+- **`md`+** — the sidebar shell: a 256px left rail (brand + every
+  `residentMoreNav` group + the resident profile card) and a top bar naming the
+  current section, with the content in `max-w-6xl`. The bottom bar and `More`
+  sheet are hidden. Home splits at `lg` into services/announcement (left) and
+  the assistance panel (right); other pages keep their own `max-w-4xl` form
+  column. Tablet portrait gets this shell too, so nothing is trapped in the
+  512px frame on larger devices.
 
 **Resident shell navigation** (`src/layouts/ResidentLayout.tsx` +
 `residentNav` / `residentMoreNav` in `src/config/navigation.ts`):
 
-- the fixed bottom bar carries the five tabs the resident uses most — Home,
-  Certificates, Announcements, Lupon, Profile;
-- the app bar's `More` button opens a bottom sheet (`Dialog` pinned to the
-  bottom edge, `max-h-[75vh]`, closes on route change) that lists every other
-  surface, grouped like the reference drawer: Main Services, Information,
-  Account;
+- the fixed bottom bar (phones only) carries the five tabs the resident uses
+  most — Home, Certificates, Announcements, Lupon, Profile;
+- the app bar's `More` button (phones only) opens a bottom sheet (`Dialog`
+  pinned to the bottom edge, `max-h-[75vh]`, closes on route change) that lists
+  every other surface, grouped like the reference drawer: Main Services,
+  Information, Account;
+- at `md`+ the same groups render in the sidebar, so no route depends on the
+  sheet or on typing its URL;
 - labels are the reference's own (`Request Certificate`, `File a Complaint`,
-  `Citizen's Charter`, `Kabarangay AI`, `My Profile`), so no route is
-  reachable only by typing its URL.
+  `Citizen's Charter`, `Kabarangay AI`, `My Profile`).
 
 ## Mock data
 
@@ -237,20 +253,27 @@ Read the relevant file first. Add page-specific mock arrays **inside your own pa
 
 ## Resident auth map (latest backend)
 
-Mirrors `resources/js/pages/Resident` on the `b6030a08` backend commit. Do not
+Mirrors `resources/js/pages/Resident` on the `e33e4b08` backend commit. Do not
 reintroduce the old claim flow or the standalone barangay picker — both were
 removed upstream and replaced by registration + application access.
 
 | UI route | Screen |
 |---|---|
 | `/resident/login` | Resident sign in (barangay + identifier + password) |
-| `/resident/register` | Registration wizard |
+| `/resident/register` | Six-step registration wizard (barangay → personal info → sectors → verification → account → review) |
 | `/resident/register/submitted` | Pending screen + application reference |
 | `/resident/application/access` | Open an application with reference + registration password |
 | `/resident/application/:reference` | Status and correction resubmission, read-only once approved or rejected |
 | `/resident/forgot-password` | Request a reset link |
 | `/resident/reset-password/:token` | Choose a new password |
 | `/resident/email/verify/:token` | Verified / expired / email-changed / invalid |
+
+The wizard mirrors `Resident/Register.tsx`: a barangay must be selected first, sector cards are
+mutually exclusive for **Regular** but allow **Senior Citizen + PWD** together, senior/PWD choices
+add the matching proof upload, the email must be verified with a 6-digit OTP before the account
+step unlocks (mobile stays unverified, as upstream), and the declaration is required before
+submitting. Uploads and the live `getUserMedia` capture stay local `File` objects — nothing is
+sent anywhere; submitting navigates to `/resident/register/submitted`.
 
 Staff sign in stays at `/login` (one page, desktop only). The backend serves the same form
 at the staff subdomain root with the same fields: barangay, department, position, full name,
@@ -259,6 +282,28 @@ password.
 Desktop additions that mirror the same backend commit: `/admin/announcements/approvals`
 (approve/reject queue), `/admin/sector-applications/:id` (full application record) and
 `/lupon/cases/create` (walk-in case page, replacing the old inline dialog).
+
+## Sector desk flow (Senior + PWD)
+
+`src/pages/sectors/{senior,pwd}` are thin wrappers over the shared desk components in
+`src/components/sectors/desk`, switched by the descriptor in `src/config/sectorDesks.ts`. The
+flow mirrors `resources/js/pages/Senior` / `Pwd` and the shared backend components:
+
+1. **Dashboard** (`/senior/dashboard`) — welcome + `View Updates`, four stats (registered
+   members, updates & programs, draft programs, published posts), and the recent updates &
+   programs table with a QR attendance link when the event has a sheet.
+2. **Members** (`/senior/residents`) — the sector roster only. The directory filters
+   `desk.residents` on `desk.memberTag` before searching/paging, exactly like
+   `SeniorController::residents()` filters by sector. CTA → `/senior/applications/create`.
+3. **Applications** (`/senior/applications`) — status cards (All / Staff Review Needed / Legacy
+   Forwarded / Approved), search + status filter, and the Review action.
+4. **New application** (`/senior/applications/create`) — two stages: verify the walk-in resident
+   (QR/ID lookup → confirmation) then attach the required proofs and staff notes; submitting
+   queues the filing and shows the tracking number.
+5. **Review** (`/senior/applications/:id`) — completeness checklist, staff remarks, rejection
+   reason, then Approve & Activate / Request Correction / Reject.
+6. **Boards** — Updates, Programs and the combined Announcements view described above, with the
+   create/edit dialog, mark-done action and attendance sheet (`/…/announcements/:id/attendance`).
 
 ## Checks
 

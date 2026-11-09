@@ -252,14 +252,16 @@ function SummaryCard({
 }
 
 function NotificationRow({ notification }: { notification: DashboardNotification }) {
+  const Icon = notification.icon
+
   return (
     <Link
       to={notification.href}
       className="flex items-center justify-between gap-4 px-5 py-4 transition-colors hover:bg-canvas/60"
     >
       <div className="flex min-w-0 items-center gap-3">
-        <span className="grid size-9 shrink-0 place-items-center rounded-full bg-brand-soft text-sm font-semibold text-brand">
-          {notification.icon}
+        <span className="grid size-9 shrink-0 place-items-center rounded-full bg-brand-soft text-brand">
+          <Icon className="size-4" />
         </span>
 
         <div className="min-w-0">

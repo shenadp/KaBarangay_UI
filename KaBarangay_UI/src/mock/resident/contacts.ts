@@ -11,6 +11,17 @@
  */
 
 import {
+  Ambulance,
+  CloudRain,
+  Flame,
+  HeartPulse,
+  Phone,
+  Shield,
+  Siren,
+  type LucideIcon,
+} from "lucide-react"
+
+import {
   emergencyDirectory,
   normalizePhone,
   type ContactItem,
@@ -106,32 +117,32 @@ export function splitTanodContacts(hotlines: ResidentContact[]): {
 }
 
 /** The four tiles the emergency panel places first, in that order. */
-export const QUICK_CALLS = [
-  { icon: "🆘", subCategory: "City Emergency", title: "City Emergency" },
-  { icon: "🚑", subCategory: "Ambulance", title: "Ambulance" },
-  { icon: "🔥", subCategory: "Fire", title: "Fire" },
-  { icon: "👮", subCategory: "Police", title: "Police" },
-] as const
+export const QUICK_CALLS: { icon: LucideIcon; subCategory: string; title: string }[] = [
+  { icon: Siren, subCategory: "City Emergency", title: "City Emergency" },
+  { icon: Ambulance, subCategory: "Ambulance", title: "Ambulance" },
+  { icon: Flame, subCategory: "Fire", title: "Fire" },
+  { icon: Shield, subCategory: "Police", title: "Police" },
+]
 
 export function emergencyCategories(contacts: ResidentContact[]): string[] {
   return [...new Set(contacts.map((contact) => contact.subCategory || "General"))]
 }
 
-export function emergencyCategoryIcon(category: string): string {
+export function emergencyCategoryIcon(category: string): LucideIcon {
   switch (category) {
     case "City Emergency":
-      return "🆘"
+      return Siren
     case "Ambulance":
-      return "🚑"
+      return Ambulance
     case "Fire":
-      return "🔥"
+      return Flame
     case "Police":
-      return "👮"
+      return Shield
     case "Hospital":
-      return "🏥"
+      return HeartPulse
     case "Disaster":
-      return "🌧️"
+      return CloudRain
     default:
-      return "☎️"
+      return Phone
   }
 }

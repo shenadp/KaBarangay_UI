@@ -501,7 +501,7 @@ export default function DeskPostsBoard({
 
         {filtered.length === 0 ? (
           <EmptyState
-            icon={copy.title === "Programs" ? CalendarCheck : Megaphone}
+            icon={kinds.includes("program") ? CalendarCheck : Megaphone}
             title={copy.emptyTitle}
             description="Try another tab or clear the filters to see the rest of the board."
             action={

@@ -15,9 +15,11 @@ import {
   FileText,
   Info,
   Loader2,
+  Mail,
   MapPin,
   PersonStanding,
   RotateCcw,
+  Send,
   ShieldCheck,
   Upload,
   UserPlus,
@@ -50,8 +52,9 @@ import { submitRegistration } from "@/mock/resident/registration"
 /**
  * Resident registration mirrors the backend's six-step wizard:
  * Barangay → Personal Information → Sector Information → Identity Verification
- * → Account Security → Review & Submit. There is no OTP step — email is
- * optional and unverified, exactly like the reference page. Everything is mock:
+ * → Account Security → Review & Submit. The email must be verified with a
+ * one-time code before the account step and submit unlock, exactly like
+ * `Resident/Register.tsx` + `EmailVerificationSection`. Everything is mock:
  * submitting writes into the same registry the barangay desk reads from.
  */
 const steps = [
@@ -246,6 +249,16 @@ export default function ResidentRegister() {
   const [showConfirm, setShowConfirm] = useState(false)
   const [submitErrors, setSubmitErrors] = useState<string[]>([])
 
+  /* Email one-time code — the backend blocks the account step and submit until
+     `email_verified` is true (`useRegistrationEmailOtp`). */
+  const [otpSent, setOtpSent] = useState(false)
+  const [otpCode, setOtpCode] = useState("")
+  const [otpVerified, setOtpVerified] = useState(false)
+  const [otpError, setOtpError] = useState("")
+  const [otpNotice, setOtpNotice] = useState("")
+  const [otpBusy, setOtpBusy] = useState(false)
+  const [resendIn, setResendIn] = useState(0)
+
   const form = useForm<ResidentRegistrationValues>({
     resolver: zodResolver(residentRegistrationSchema),
     defaultValues,
@@ -261,23 +274,89 @@ export default function ResidentRegister() {
     window.scrollTo({ top: 0 })
   }, [step])
 
+  /* Changing the email invalidates the code that was sent to the old address. */
+  useEffect(() => {
+    setOtpSent(false)
+    setOtpCode("")
+    setOtpVerified(false)
+    setOtpError("")
+    setOtpNotice("")
+    setResendIn(0)
+  }, [values.email])
+
+  useEffect(() => {
+    if (resendIn <= 0) return
+    const timer = window.setTimeout(() => setResendIn((seconds) => seconds - 1), 1000)
+    return () => window.clearTimeout(timer)
+  }, [resendIn])
+
+  const requestOtp = () => {
+    const email = form.getValues("email").trim()
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      form.setError("email", {
+        type: "manual",
+        message: "Enter a valid email address before requesting a code.",
+      })
+      return
+    }
+
+    form.clearErrors("email")
+    setOtpBusy(true)
+    setOtpError("")
+    // UI-only: the integration replaces this with POST /register/send-otp.
+    window.setTimeout(() => {
+      setOtpBusy(false)
+      setOtpSent(true)
+      setResendIn(30)
+      setOtpNotice(`A 6-digit code was sent to ${email}. For this demo, any 6 digits work.`)
+    }, 700)
+  }
+
+  const verifyOtp = () => {
+    const code = otpCode.replace(/\D/g, "")
+    if (code.length !== 6) {
+      setOtpError("Enter the 6-digit code from your email.")
+      return
+    }
+
+    setOtpBusy(true)
+    setOtpError("")
+    // UI-only: the integration replaces this with POST /register/verify-otp.
+    window.setTimeout(() => {
+      setOtpBusy(false)
+      setOtpVerified(true)
+      setOtpNotice("")
+      form.clearErrors("email")
+    }, 600)
+  }
+
   const validateStep = () => {
     const result = stepSchemas[step].safeParse(form.getValues())
     form.clearErrors()
 
-    if (result.success) return true
-
-    for (const issue of result.error.issues) {
-      const field = issue.path[0]
-      if (typeof field === "string") {
-        form.setError(field as FieldPath<ResidentRegistrationValues>, {
-          type: "manual",
-          message: issue.message,
-        })
+    if (!result.success) {
+      for (const issue of result.error.issues) {
+        const field = issue.path[0]
+        if (typeof field === "string") {
+          form.setError(field as FieldPath<ResidentRegistrationValues>, {
+            type: "manual",
+            message: issue.message,
+          })
+        }
       }
+
+      return false
     }
 
-    return false
+    if (step === 4 && !otpVerified) {
+      form.setError("email", {
+        type: "manual",
+        message: "Verify your email with the one-time code before continuing.",
+      })
+      return false
+    }
+
+    return true
   }
 
   const goNext = () => {
@@ -337,6 +416,15 @@ export default function ResidentRegister() {
   }
 
   const onSubmit = (submitted: ResidentRegistrationValues) => {
+    if (!otpVerified) {
+      form.setError("email", {
+        type: "manual",
+        message: "Verify your email with the one-time code before submitting.",
+      })
+      setStep(4)
+      return
+    }
+
     setSubmitting(true)
     setSubmitErrors([])
 
@@ -847,7 +935,7 @@ export default function ResidentRegister() {
                   <div className="space-y-3">
                     <SectionHeading
                       title="Contact Information"
-                      description="Mobile number – Unverified. Mobile verification is not yet available. Email is optional."
+                      description="Mobile number – Unverified. Email must be verified with a one-time code before you can continue."
                     />
 
                     <div className="grid gap-3.5 min-[420px]:grid-cols-2">
@@ -861,18 +949,116 @@ export default function ResidentRegister() {
                         required: true,
                       })}
 
-                      {textField({
-                        name: "email",
-                        label: "Email address (optional)",
-                        placeholder: "Optional",
-                        type: "email",
-                        inputMode: "email",
-                        autoComplete: "email",
-                      })}
+                      <FormField
+                        control={form.control}
+                        name="email"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>
+                              Email address<span className="text-destructive"> *</span>
+                            </FormLabel>
+                            <div className="flex gap-2">
+                              <FormControl>
+                                <Input
+                                  {...field}
+                                  value={field.value ?? ""}
+                                  type="email"
+                                  inputMode="email"
+                                  autoComplete="email"
+                                  placeholder="maria.santos@example.com"
+                                  className="h-11 min-w-0 bg-surface"
+                                />
+                              </FormControl>
+                              <Button
+                                type="button"
+                                variant={otpVerified ? "outline" : "default"}
+                                className={cn(
+                                  "h-11 shrink-0 px-3",
+                                  otpVerified && "bg-surface text-success",
+                                )}
+                                onClick={requestOtp}
+                                disabled={otpBusy || otpVerified || resendIn > 0}
+                              >
+                                {otpBusy ? (
+                                  <Loader2 className="size-4 animate-spin" />
+                                ) : otpVerified ? (
+                                  <CheckCircle2 className="size-4" />
+                                ) : (
+                                  <Send className="size-4" />
+                                )}
+                                {otpVerified
+                                  ? "Verified"
+                                  : otpSent && resendIn > 0
+                                    ? `Resend ${resendIn}s`
+                                    : otpSent
+                                      ? "Resend"
+                                      : "Send OTP"}
+                              </Button>
+                            </div>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+
+                      {otpSent && !otpVerified && (
+                        <div className="space-y-2 rounded-xl border border-line-soft bg-canvas/60 p-3.5 min-[420px]:col-span-2">
+                          <label
+                            htmlFor="registration-otp"
+                            className="flex items-center gap-1.5 text-xs font-medium text-ink-strong"
+                          >
+                            <Mail className="size-3.5 text-brand" /> 6-digit code
+                          </label>
+                          <div className="flex gap-2">
+                            <Input
+                              id="registration-otp"
+                              value={otpCode}
+                              onChange={(event) => {
+                                setOtpCode(event.target.value.replace(/\D/g, "").slice(0, 6))
+                                setOtpError("")
+                              }}
+                              onKeyDown={(event) => {
+                                if (event.key === "Enter") {
+                                  event.preventDefault()
+                                  verifyOtp()
+                                }
+                              }}
+                              inputMode="numeric"
+                              autoComplete="one-time-code"
+                              maxLength={6}
+                              placeholder="000000"
+                              className="h-11 w-36 bg-surface text-center tracking-[0.35em] tnum"
+                            />
+                            <Button
+                              type="button"
+                              className="h-11"
+                              onClick={verifyOtp}
+                              disabled={otpBusy}
+                            >
+                              {otpBusy ? (
+                                <Loader2 className="size-4 animate-spin" />
+                              ) : (
+                                <ShieldCheck className="size-4" />
+                              )}
+                              Verify code
+                            </Button>
+                          </div>
+                          {otpNotice && (
+                            <p className="text-xs leading-relaxed text-ink-muted">{otpNotice}</p>
+                          )}
+                          {otpError && <p className="text-xs text-destructive">{otpError}</p>}
+                        </div>
+                      )}
+
+                      {otpVerified && (
+                        <p className="flex items-center gap-1.5 text-xs font-medium text-success min-[420px]:col-span-2">
+                          <CheckCircle2 className="size-3.5" /> Email verified — registration
+                          updates go to this address.
+                        </p>
+                      )}
 
                       <p className="text-xs leading-relaxed text-ink-muted min-[420px]:col-span-2">
-                        Kung may email, dito ipapadala ang approval, correction request, o ibang
-                        desisyon ng admin. Siguraduhing tama at aktibo ang email address.
+                        The approval, correction request, or any decision from the admin is sent to
+                        this email. Make sure it is active and spelled correctly.
                       </p>
                     </div>
                   </div>
@@ -1024,7 +1210,14 @@ export default function ResidentRegister() {
                         label="Mobile Number"
                         value={values.mobile ? `${values.mobile} · Unverified` : "—"}
                       />
-                      <ReviewItem label="Email Address" value={values.email || "Not provided"} />
+                      <ReviewItem
+                        label="Email Address"
+                        value={
+                          values.email
+                            ? `${values.email} · ${otpVerified ? "OTP verified" : "Not verified"}`
+                            : "—"
+                        }
+                      />
                     </div>
                   </ReviewBlock>
 

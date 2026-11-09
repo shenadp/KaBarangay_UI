@@ -198,35 +198,36 @@ export const seniorDesk: SectorDeskDescriptor = {
 
   boards: {
     "auto,update": {
-      title: "Announcements",
+      title: "Senior Citizens Sector Announcements",
       description:
-        "Notices and updates published from the senior citizens desk, with their approval standing.",
-      newLabel: "New announcement",
+        "Create, update, and manage announcements for the Senior Citizens sector.",
+      newLabel: "Create Senior Announcement",
       panelTitle: "Announcements",
       panelDescription: "Notices and updates posted from this desk",
       noun: "announcements",
       emptyTitle: "No announcements in this view",
-      searchPlaceholder: "Search announcement title…",
+      searchPlaceholder: "Search announcements…",
     },
     update: {
-      title: "Updates",
-      description: "Short advisories pushed to the residents’ senior update feed.",
-      newLabel: "New update",
+      title: "Senior Citizens Updates",
+      description: "Publish informational notices and advisories for Senior Citizens.",
+      newLabel: "Publish Update",
       panelTitle: "Senior Sector Updates",
       panelDescription: "Advisories and service notices for senior citizens",
       noun: "updates",
       emptyTitle: "No updates in this view",
-      searchPlaceholder: "Search update title…",
+      searchPlaceholder: "Search updates…",
     },
     program: {
-      title: "Programs",
-      description: "Senior citizen programs and activities, from proposal through to completion.",
-      newLabel: "New program",
+      title: "Senior Citizens Programs",
+      description:
+        "Create and manage scheduled Senior Citizens activities and attendance.",
+      newLabel: "Create Program",
       panelTitle: "Senior Sector Programs",
       panelDescription: "Programs run by this desk and their lifecycle",
       noun: "programs",
       emptyTitle: "No programs in this view",
-      searchPlaceholder: "Search program title…",
+      searchPlaceholder: "Search programs…",
     },
   },
 }
